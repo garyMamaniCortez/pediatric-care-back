@@ -24,16 +24,18 @@ const login = async (req, res) => {
     const { user } = result;
 
     const token = generateToken({
-      id: user.id_usuario,
-      username: user.usuario,
-      role: user.rol,
+      id: user.id,
+      username: user.username,
+      role: user.role
     });
 
     const response = {
       success: true,
       message: "Autenticación exitosa",
-      token,
-      user
+      data: {
+        token,
+        user
+      }
     };
     
     res.json(response);

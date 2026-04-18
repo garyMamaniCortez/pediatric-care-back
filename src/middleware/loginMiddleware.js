@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { verifyToken } = require("../utils/jwtUtils");
 const { query } = require("../../db");
 
 const authenticate = async (req, res, next) => {
@@ -29,7 +30,7 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyToken(token);
 
     if (!decoded || !decoded.id) {
       return res.status(401).json({
@@ -39,8 +40,15 @@ const authenticate = async (req, res, next) => {
     }
 
     const userResult = await query(
-      ``,
-      [decoded.id],
+      `
+      SELECT 
+        id, 
+        username, 
+        role
+      FROM users 
+      WHERE id = $1
+      `,
+      [decoded.id]
     );
 
     if (userResult.rows.length === 0) {
@@ -53,7 +61,9 @@ const authenticate = async (req, res, next) => {
     const user = userResult.rows[0];
 
     req.user = {
-      ...user
+      id: user.id,
+      username: user.username,
+      role: user.role
     };
 
     next();
@@ -84,7 +94,7 @@ const authorize = (requiredRoles) => {
       });
     }
 
-    if (!requiredRoles.includes(req.user.rol)) {
+    if (!requiredRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: "Insufficient permissions",
