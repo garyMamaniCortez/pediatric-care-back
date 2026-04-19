@@ -41,6 +41,9 @@ app.use(express.urlencoded({ limit: "10mb", extended: true }));
 const loginRoutes = require("./src/routes/loginRoutes");
 app.use("/api/login", loginRoutes);
 
+const priceListRoutes = require("./src/routes/priceListRoutes");
+app.use("/api/price-list", priceListRoutes);
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({
