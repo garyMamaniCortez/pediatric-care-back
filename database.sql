@@ -47,7 +47,7 @@ COMMENT ON TABLE patient_guardians IS 'Asocia pacientes con sus apoderados. Un p
 -- 5. TABLA DE SERVICIOS (Lista de precios)
 CREATE TABLE services (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(100) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
     active BOOLEAN DEFAULT true,
     price DECIMAL(10, 2) NOT NULL CHECK (price >= 0)
 );
