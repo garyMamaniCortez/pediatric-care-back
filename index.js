@@ -47,6 +47,9 @@ app.use("/api/price-list", priceListRoutes);
 const patientListRoutes = require("./src/routes/patientListRoutes");
 app.use("/api/patient-list", patientListRoutes);
 
+const scheduleAppointmentRoutes = require("./src/routes/scheduleAppointmentRoutes");
+app.use("/api/schedule", scheduleAppointmentRoutes);
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({
