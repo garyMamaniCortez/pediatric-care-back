@@ -44,6 +44,9 @@ app.use("/api/login", loginRoutes);
 const priceListRoutes = require("./src/routes/priceListRoutes");
 app.use("/api/price-list", priceListRoutes);
 
+const patientListRoutes = require("./src/routes/patientListRoutes");
+app.use("/api/patient-list", patientListRoutes);
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({
