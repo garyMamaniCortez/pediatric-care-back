@@ -56,6 +56,9 @@ app.use("/api/appointments", appointmentListRoutes);
 const billingRoutes = require("./src/routes/billingRoutes");
 app.use("/api/billing", billingRoutes);
 
+const paymentHistoryRoutes = require("./src/routes/paymentHistoryRoutes");
+app.use("/api/payment-history", paymentHistoryRoutes);
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({
