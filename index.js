@@ -50,6 +50,9 @@ app.use("/api/patient-list", patientListRoutes);
 const scheduleAppointmentRoutes = require("./src/routes/scheduleAppointmentRoutes");
 app.use("/api/schedule", scheduleAppointmentRoutes);
 
+const appointmentListRoutes = require("./src/routes/appointmentListRoutes");
+app.use("/api/appointments", appointmentListRoutes);
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({
