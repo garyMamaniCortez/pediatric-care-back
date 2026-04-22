@@ -38,6 +38,40 @@ const getAppointments = async (req, res) => {
   }
 };
 
+const getAppointmentById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "ID de la cita es requerido",
+      });
+    }
+
+    const result = await appointmentListService.getAppointmentById(id);
+
+    if (!result.success) {
+      return res.status(404).json({
+        success: false,
+        message: result.message,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.data,
+    });
+  } catch (error) {
+    console.error("Error en getAppointmentById:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error interno del servidor",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
 const createAppointment = async (req, res) => {
   try {
     const { patientId, serviceId, date, time } = req.body;
@@ -203,4 +237,5 @@ module.exports = {
   createAppointment,
   updateAppointment,
   cancelAppointment,
+  getAppointmentById,
 };

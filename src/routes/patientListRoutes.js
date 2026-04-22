@@ -28,4 +28,6 @@ router.delete(
   patientListController.deletePatient
 );
 
+router.get("/:id", patientListController.getPatientById);
+
 module.exports = router;

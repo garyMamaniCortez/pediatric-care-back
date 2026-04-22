@@ -93,8 +93,43 @@ const deletePatient = async (req, res) => {
   }
 };
 
+const getPatientById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "ID del paciente es requerido",
+      });
+    }
+
+    const patient = await patientListService.getPatientById(id);
+
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        message: "Paciente no encontrado",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: patient,
+    });
+  } catch (error) {
+    console.error("Error en getPatientById:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error interno del servidor",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
 module.exports = {
   getPatients,
   updatePatient,
-  deletePatient
+  deletePatient,
+  getPatientById
 };

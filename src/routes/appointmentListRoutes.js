@@ -13,6 +13,8 @@ router.get(
   appointmentListController.getAppointments
 );
 
+router.get("/:id", authenticate, appointmentListController.getAppointmentById);
+
 router.post(
   "/", 
   authenticate, 

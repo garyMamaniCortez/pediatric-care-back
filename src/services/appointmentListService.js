@@ -33,6 +33,46 @@ const getAppointmentsByDate = async (date) => {
   }
 };
 
+const getAppointmentById = async (id) => {
+  try {
+    const result = await query(
+      `
+      SELECT 
+        a.id,
+        a.patient_id as "patientId",
+        a.service_id as "serviceId",
+        a.date,
+        a.time,
+        a.status,
+        p.name as "patientName",
+        s.name as "serviceName",
+        s.price as "servicePrice"
+      FROM appointments a
+      JOIN patients p ON a.patient_id = p.id
+      JOIN services s ON a.service_id = s.id
+      WHERE a.id = $1
+      `,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return {
+        success: false,
+        message: "Cita no encontrada",
+        data: null,
+      };
+    }
+
+    return {
+      success: true,
+      data: result.rows[0],
+    };
+  } catch (error) {
+    console.error("Error en getAppointmentById:", error);
+    throw error;
+  }
+};
+
 const getAppointmentsByDateRange = async (startDate, endDate) => {
   try {
     const result = await query(
@@ -304,6 +344,7 @@ const cancelAppointment = async (id) => {
 module.exports = {
   getAppointmentsByDate,
   getAppointmentsByDateRange,
+  getAppointmentById,
   checkAvailability,
   checkPatientExists,
   checkServiceExists,
