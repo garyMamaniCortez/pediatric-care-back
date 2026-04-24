@@ -114,7 +114,7 @@ const scheduleAppointmentValidations = {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
-        if (appointmentDate < today) {
+        if (appointmentDate <= today.getDay() -1) {
           throw new Error('No se pueden agendar citas en fechas pasadas');
         }
         
@@ -160,7 +160,7 @@ const scheduleAppointmentValidations = {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
-        if (date < today) {
+        if (date < today.getDay() -1) {
           throw new Error('No se pueden consultar horarios de fechas pasadas');
         }
         
