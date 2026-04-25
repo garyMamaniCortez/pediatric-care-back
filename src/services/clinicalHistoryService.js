@@ -1,7 +1,313 @@
 const { query } = require("../../db");
+const { HEIGHT_FOR_AGE_GIRLS_UP_TO_5_YEARS, HEIGHT_FOR_AGE_GIRLS_UP_TO_19_YEARS, HEIGHT_FOR_AGE_BOYS_UP_TO_5_YEARS, HEIGHT_FOR_AGE_BOYS_UP_TO_19_YEARS } = require('../data/heightForAge');
+const { WEIGHT_FOR_AGE_GIRLS_UP_TO_5_YEARS, WEIGHT_FOR_AGE_GIRLS_UP_TO_10_YEARS, WEIGHT_FOR_AGE_BOYS_UP_TO_5_YEARS, WEIGHT_FOR_AGE_BOYS_UP_TO_10_YEARS } = require('../data/weightForAge');
+const { WEIGHT_FOR_HEIGHT_GIRLS_UP_TO_5_YEARS, WEIGHT_FOR_HEIGHT_BOYS_UP_TO_5_YEARS, BMI_GIRLS_UP_TO_19_YEARS, BMI_BOYS_UP_TO_19_YEARS } = require('../data/weightForHeight');
+
+const calculateAge = (birthDate, referenceDate) => {
+  const birth = new Date(birthDate);
+  const reference = new Date(referenceDate);
+  
+  const diffTime = Math.abs(reference - birth);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const diffMonths = (reference.getFullYear() - birth.getFullYear()) * 12 + 
+                     (reference.getMonth() - birth.getMonth());
+  
+  if (diffDays < 730) {
+    return { value: diffDays, unit: 'days' };
+  }
+  
+  // Para mayores de 2 años, devolvemos edad en meses
+  return { value: diffMonths, unit: 'months' };
+};
+
+/**
+ * Encuentra el registro más cercano por interpolación
+ */
+const findClosestRecord = (data, ageValue, valueKey = 'age') => {
+  if (!data || data.length === 0) return null;
+  
+  // Ordenar datos por edad
+  const sortedData = [...data].sort((a, b) => a[valueKey] - b[valueKey]);
+  
+  // Buscar coincidencia exacta o el más cercano
+  let closest = sortedData[0];
+  let minDiff = Math.abs(sortedData[0][valueKey] - ageValue);
+  
+  for (let i = 1; i < sortedData.length; i++) {
+    const diff = Math.abs(sortedData[i][valueKey] - ageValue);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = sortedData[i];
+    }
+  }
+  
+  return closest;
+};
+
+/**
+ * Interpola valores entre dos puntos
+ */
+const interpolate = (record1, record2, ageValue, valueKey = 'age') => {
+  if (!record1 || !record2) return record1 || record2;
+  if (record1[valueKey] === record2[valueKey]) return record1;
+  
+  const ratio = (ageValue - record1[valueKey]) / (record2[valueKey] - record1[valueKey]);
+  
+  const result = { age: ageValue };
+  const fields = ['SD3neg', 'SD2neg', 'SD1neg', 'SD0', 'SD1', 'SD2', 'SD3'];
+  
+  fields.forEach(field => {
+    if (record1[field] !== undefined && record2[field] !== undefined) {
+      result[field] = record1[field] + (record2[field] - record1[field]) * ratio;
+    }
+  });
+  
+  return result;
+};
+
+/**
+ * Obtiene referencia de peso para la edad
+ */
+const getWeightForAge = (gender, ageInDays, ageInMonths, isUnder2Years) => {
+  let reference = null;
+  let ageValue = isUnder2Years ? ageInDays : ageInMonths;
+  let valueKey = 'age';
+  
+  if (isUnder2Years) {
+    // Menor de 2 años: usar tablas hasta 5 años (edad en días)
+    reference = gender === 'femenino' 
+      ? WEIGHT_FOR_AGE_GIRLS_UP_TO_5_YEARS 
+      : WEIGHT_FOR_AGE_BOYS_UP_TO_5_YEARS;
+  } else {
+    // Mayor de 2 años: usar tablas hasta 10 años (edad en meses)
+    if (ageInMonths <= 120) { // Hasta 10 años
+      reference = gender === 'femenino' 
+        ? WEIGHT_FOR_AGE_GIRLS_UP_TO_10_YEARS 
+        : WEIGHT_FOR_AGE_BOYS_UP_TO_10_YEARS;
+      valueKey = 'months';
+      // Convertir ageInMonths al formato de la tabla (puede ser 'months' o 'age')
+      if (reference[0] && reference[0].months !== undefined) {
+        valueKey = 'months';
+      }
+    } else {
+      // Para mayores de 10 años, usará BMI
+      return null;
+    }
+  }
+  
+  if (!reference) return null;
+  
+  // Encontrar registros para interpolación
+  const sortedRef = [...reference].sort((a, b) => a[valueKey] - b[valueKey]);
+  let lower = null;
+  let upper = null;
+  
+  for (let i = 0; i < sortedRef.length; i++) {
+    if (sortedRef[i][valueKey] <= ageValue) {
+      lower = sortedRef[i];
+    }
+    if (sortedRef[i][valueKey] >= ageValue && !upper) {
+      upper = sortedRef[i];
+    }
+  }
+  
+  if (lower && upper && lower !== upper) {
+    return interpolate(lower, upper, ageValue, valueKey);
+  }
+  
+  return lower || upper;
+};
+
+/**
+ * Obtiene referencia de talla para la edad
+ */
+const getHeightForAge = (gender, ageInDays, ageInMonths, isUnder2Years) => {
+  let reference = null;
+  let ageValue = isUnder2Years ? ageInDays : ageInMonths;
+  
+  if (isUnder2Years) {
+    // Menor de 2 años: usar tablas hasta 5 años (edad en días)
+    reference = gender === 'femenino' 
+      ? HEIGHT_FOR_AGE_GIRLS_UP_TO_5_YEARS 
+      : HEIGHT_FOR_AGE_BOYS_UP_TO_5_YEARS;
+  } else if (ageInMonths <= 228) { // Hasta 19 años (228 meses)
+    reference = gender === 'femenino' 
+      ? HEIGHT_FOR_AGE_GIRLS_UP_TO_19_YEARS 
+      : HEIGHT_FOR_AGE_BOYS_UP_TO_19_YEARS;
+  }
+  
+  if (!reference) return null;
+  
+  // Encontrar registros para interpolación
+  const sortedRef = [...reference].sort((a, b) => a.age - b.age);
+  let lower = null;
+  let upper = null;
+  
+  for (let i = 0; i < sortedRef.length; i++) {
+    if (sortedRef[i].age <= ageValue) {
+      lower = sortedRef[i];
+    }
+    if (sortedRef[i].age >= ageValue && !upper) {
+      upper = sortedRef[i];
+    }
+  }
+  
+  if (lower && upper && lower !== upper) {
+    return interpolate(lower, upper, ageValue);
+  }
+  
+  return lower || upper;
+};
+
+/**
+ * Obtiene referencia de peso para la talla
+ */
+const getWeightForHeight = (gender, height) => {
+  // Solo aplica para menores de 5 años y talla entre 65-120 cm
+  if (height < 65 || height > 120) return null;
+  
+  const reference = gender === 'femenino' 
+    ? WEIGHT_FOR_HEIGHT_GIRLS_UP_TO_5_YEARS 
+    : WEIGHT_FOR_HEIGHT_BOYS_UP_TO_5_YEARS;
+  
+  if (!reference) return null;
+  
+  // Encontrar registros para interpolación
+  const sortedRef = [...reference].sort((a, b) => a.Height - b.Height);
+  let lower = null;
+  let upper = null;
+  
+  for (let i = 0; i < sortedRef.length; i++) {
+    if (sortedRef[i].Height <= height) {
+      lower = sortedRef[i];
+    }
+    if (sortedRef[i].Height >= height && !upper) {
+      upper = sortedRef[i];
+    }
+  }
+  
+  if (lower && upper && lower !== upper) {
+    const ratio = (height - lower.Height) / (upper.Height - lower.Height);
+    const result = { Height: height };
+    const fields = ['SD3neg', 'SD2neg', 'SD1neg', 'SD0', 'SD1', 'SD2', 'SD3'];
+    
+    fields.forEach(field => {
+      if (lower[field] !== undefined && upper[field] !== undefined) {
+        result[field] = lower[field] + (upper[field] - lower[field]) * ratio;
+      }
+    });
+    
+    return result;
+  }
+  
+  return lower || upper;
+};
+
+/**
+ * Obtiene referencia de BMI
+ */
+const getBMIReference = (gender, ageInMonths) => {
+  if (ageInMonths < 24 || ageInMonths > 228) return null; // 2-19 años
+  
+  const reference = gender === 'femenino' 
+    ? BMI_GIRLS_UP_TO_19_YEARS 
+    : BMI_BOYS_UP_TO_19_YEARS;
+  
+  if (!reference) return null;
+  
+  // Encontrar registros para interpolación
+  const sortedRef = [...reference].sort((a, b) => a.months - b.months);
+  let lower = null;
+  let upper = null;
+  
+  for (let i = 0; i < sortedRef.length; i++) {
+    if (sortedRef[i].months <= ageInMonths) {
+      lower = sortedRef[i];
+    }
+    if (sortedRef[i].months >= ageInMonths && !upper) {
+      upper = sortedRef[i];
+    }
+  }
+  
+  if (lower && upper && lower !== upper) {
+    const ratio = (ageInMonths - lower.months) / (upper.months - lower.months);
+    const result = { months: ageInMonths };
+    const fields = ['SD3neg', 'SD2neg', 'SD1neg', 'SD0', 'SD1', 'SD2', 'SD3'];
+    
+    fields.forEach(field => {
+      if (lower[field] !== undefined && upper[field] !== undefined) {
+        result[field] = lower[field] + (upper[field] - lower[field]) * ratio;
+      }
+    });
+    
+    return result;
+  }
+  
+  return lower || upper;
+};
+
+/**
+ * Calcula el BMI
+ */
+const calculateBMI = (weight, height) => {
+  if (!weight || !height) return null;
+  // height en cm, convertir a metros
+  const heightInMeters = height / 100;
+  return weight / (heightInMeters * heightInMeters);
+};
+
+/**
+ * Función principal para obtener referencias de crecimiento
+ */
+const getGrowthReferences = (patient, recordDate, weight, height) => {
+  const { birth_date, gender } = patient;
+  const age = calculateAge(birth_date, recordDate);
+  const isUnder2Years = age.unit === 'days' && age.value < 730;
+  const ageInDays = age.unit === 'days' ? age.value : null;
+  const ageInMonths = age.unit === 'months' ? age.value : null;
+  
+  const references = {};
+  
+  if (isUnder2Years) {
+    // Menor de 2 años: peso para edad y talla para edad
+    references.weight_for_age = getWeightForAge(gender, ageInDays, null, true);
+    references.height_for_age = getHeightForAge(gender, ageInDays, null, true);
+  } else {
+    // Mayor de 2 años: peso para talla y talla para edad
+    references.height_for_age = getHeightForAge(gender, null, ageInMonths, false);
+    
+    // Intentar peso para talla (solo si está en rango)
+    if (height && height >= 65 && height <= 120) {
+      references.weight_for_height = getWeightForHeight(gender, height);
+    }
+    
+    // Si no se encontró peso para talla, usar BMI
+    if (!references.weight_for_height && weight && height) {
+      const bmi = calculateBMI(weight, height);
+      references.bmi = getBMIReference(gender, ageInMonths);
+      
+      if (references.bmi && bmi) {
+        references.bmi.current_value = bmi;
+      }
+    }
+  }
+  
+  return references;
+};
 
 const getClinicalRecords = async (patientId) => {
   try {
+    const patientResult = await query(
+      `SELECT id, name, birth_date, gender FROM patients WHERE id = $1`,
+      [patientId]
+    );
+    
+    if (patientResult.rows.length === 0) {
+      throw new Error('Paciente no encontrado');
+    }
+    
+    const patient = patientResult.rows[0];
+    
     const result = await query(
       `
       SELECT 
@@ -24,16 +330,32 @@ const getClinicalRecords = async (patientId) => {
       `,
       [patientId]
     );
-
+    
+    const enrichedData = result.rows.map(record => {
+      const recordDate = record.date || record.appointmentDate;
+      const references = getGrowthReferences(
+        patient,
+        recordDate,
+        record.weight,
+        record.height
+      );
+      
+      return {
+        ...record,
+        growth_references: references
+      };
+    });
+    
     return {
       success: true,
-      data: result.rows,
+      data: enrichedData,
     };
   } catch (error) {
     console.error("Error en getClinicalRecords:", error);
     throw error;
   }
 };
+
 
 const createClinicalRecord = async (recordData) => {
   
